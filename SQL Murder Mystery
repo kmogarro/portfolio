@@ -1,0 +1,54 @@
+#Below iS the code I used to explore the dataset for the SQL Muder Mystery. Pretty fun!
+
+SELECT * FROM crime_scene_report
+WHERE date=20180115 AND type='murder' AND city='SQL City'
+
+#---
+SELECT * FROM person
+WHERE address_street_name LIKE '%Northwestern%'
+ORDER BY address_number desc
+
+SELECT * FROM person
+WHERE name LIKE 'Annabel%'
+
+#---
+SELECT * FROM person p
+JOIN interview i ON i.person_id=p.id
+WHERE p.id IN(14887, 16371)
+
+#---
+SELECT * FROM drivers_license
+WHERE plate_number LIKE '%H42W%'
+
+#--- 
+SELECT * FROM drivers_license dl
+JOIN person p ON p.license_id=dl.id
+JOIN get_fit_now_member gfm ON gfm
+WHERE plate_number LIKE '%H42W%'
+
+#---FINAL ANSWER
+SELECT
+	p.name
+	,gfm.id
+	,gfc.check_in_date
+	,dl.plate_number
+FROM get_fit_now_check_in gfc
+JOIN get_fit_now_member gfm ON gfm.id=gfc.membership_id
+JOIN person p ON p.id=gfm.person_id
+JOIN drivers_license dl ON dl.id=p.license_id
+WHERE gfc.check_in_date=20180109  
+AND membership_id LIKE '48Z%'
+AND DL.plate_NUMBER LIKE '%H42W%'
+
+#---BONUS CHALLENGE ANSWER
+SELECT transcript FROM interview
+JOIN person ON person.id=interview.person_id
+WHERE person.name='Jeremy Bowers'
+
+SELECT p.name
+FROM facebook_event_checkin f
+JOIN person p ON p.id=f.person_id
+JOIN drivers_license dl ON dl.id=p.license_id
+WHERE event_name='SQL Symphony Concert'
+AND height BETWEEN 65 AND 67
+AND car_make='Tesla'
