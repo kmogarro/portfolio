@@ -1,0 +1,35 @@
+-- Dataset: Massachusetts General Hospital Patient Records 2011-2022
+-- Source: https://app.mavenanalytics.io/datasets
+-- Queried using: MySQL Workbench
+
+/*
+Analyzing Patient Demographics
+*/
+-- What is the average number of visits per patient per year?
+select
+    yr,
+    avg(num_encounters) as average_encounters_per_patient
+from (
+    select
+        year(encounter_start) as yr,
+        patient,
+        count(*) as num_encounters
+    from encounters
+    group by yr, patient
+) patient_encounters
+group by yr
+order by yr desc;
+    
+-- What are the most common encounter types?
+select
+    encounterclass,
+    count(*) as visits
+from encounters
+group by encounterclass
+order by 2 desc;
+
+-- Analyzing encounter frequency by patient age, gender, and race
+select
+    count(case when gender='F' then 1 end) / count(*) as percentage_female,
+    count(case when gender='M' then 1 end) / count(*) as percentage_male
+from patients;
