@@ -6,30 +6,34 @@
 Analyzing Patient Demographics
 */
 -- What is the average number of visits per patient per year?
-select
-    yr,
-    avg(num_encounters) as average_encounters_per_patient
-from (
-    select
-        year(encounter_start) as yr,
+SELECT 
+    yr, 
+    AVG(num_encounters) AS average_encounters_per_patient
+FROM 
+    (SELECT 
+        YEAR(encounter_start) AS yr,
         patient,
-        count(*) as num_encounters
-    from encounters
-    group by yr, patient
-) patient_encounters
-group by yr
-order by yr desc;
+        COUNT(*) AS num_encounters
+    FROM encounters
+    GROUP BY 
+        yr, 
+        patient) patient_encounters
+GROUP BY yr
+ORDER BY yr DESC;
     
 -- What are the most common encounter types?
-select
-    encounterclass,
-    count(*) as visits
-from encounters
-group by encounterclass
-order by 2 desc;
+SELECT 
+    encounterclass, 
+    COUNT(*) AS visits
+FROM encounters
+GROUP BY encounterclass
+ORDER BY 2 DESC;
 
 -- Analyzing encounter frequency by patient age, gender, and race
-select
-    count(case when gender='F' then 1 end) / count(*) as percentage_female,
-    count(case when gender='M' then 1 end) / count(*) as percentage_male
-from patients;
+SELECT 
+    COUNT(CASE WHEN gender = 'F' THEN 1 END) / COUNT(*) AS percentage_female,
+    COUNT(CASE WHEN gender = 'M' THEN 1 END) / COUNT(*) AS percentage_male
+FROM encounters
+JOIN patients 
+    ON encounters.patient = patients.id
+;
