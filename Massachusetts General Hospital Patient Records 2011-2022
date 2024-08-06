@@ -35,5 +35,132 @@ SELECT
     COUNT(CASE WHEN gender = 'M' THEN 1 END) / COUNT(*) AS percentage_male
 FROM encounters
 JOIN patients 
-    ON encounters.patient = patients.id
-;
+    ON encounters.patient = patients.id;
+-- Average age at encounter
+SELECT
+    AVG(age) AS average_age
+FROM (
+SELECT
+    TIMESTAMPDIFF(
+        YEAR,
+        STR_TO_DATE(patients.birthdate, '%m/%d/%Y'),
+        DATE(encounters.encounter_start)) AS age
+FROM encounters
+JOIN patients ON encounters.patient=patients.id
+) ages;
+
+/*
+Cost analysis
+*/
+-- Comparing average costs across different encounter types
+SELECT
+    encounterclass,
+    ROUND(AVG(base_encounter_cost), 2) AS average_base_cost,
+    ROUND(AVG(total_claim_cost), 2) AS average_total_cost
+FROM encounters
+GROUP BY encounterclass
+ORDER BY average_total_cost DESC;
+
+-- Analyzing the relationship between encounter duration and cost
+WITH durations AS (
+    SELECT
+        *,
+        CASE
+            WHEN hour_duration BETWEEN 0 AND 4 THEN '0-4 hours'
+            WHEN hour_duration BETWEEN 4 AND 24 THEN 'up to 1 day'
+            WHEN hour_duration BETWEEN 24 AND 72 THEN '1-3 days'
+            WHEN hour_duration BETWEEN 72 AND 168 THEN '3-7 days'
+            WHEN hour_duration BETWEEN 168 AND 720 THEN '1-4 weeks'
+            WHEN hour_duration BETWEEN 720 AND 2160 THEN '1-3 months'
+            WHEN hour_duration BETWEEN 2160 AND 8760 THEN '3 months-1 year'
+            WHEN hour_duration > 8760 THEN '> 1 year'
+            ELSE 'error'
+        END AS duration
+    FROM (
+        SELECT
+            encounterclass,
+            TIMESTAMPDIFF(hour, encounter_start, encounter_stop) AS hour_duration,
+            base_encounter_cost,
+            total_claim_cost
+        FROM
+            encounters
+    ) AS hours
+)
+SELECT
+    duration,
+    COUNT(*) AS encounters,
+    ROUND(AVG(total_claim_cost), 2) AS average_total_cost
+FROM durations
+GROUP BY duration
+ORDER BY average_total_cost DESC;
+
+-- Calculate the average percentage of costs covered by payers
+SELECT
+    ROUND(
+        AVG(percent_covered)
+        , 2) AS average_covered
+FROM (
+SELECT
+    (payer_coverage / total_claim_cost) * 100  AS percent_covered
+FROM encounters
+) percent_payer_covers;
+ -- grouped by payers
+ SELECT
+    payers.name,
+    ROUND(
+        AVG(payer_coverage / total_claim_cost) * 100
+        , 2) AS percent_covered
+FROM encounters
+JOIN payers ON encounters.payer=payers.id
+GROUP BY payers.name
+ORDER BY percent_covered DESC;
+-- grouped by encounter class
+SELECT
+    encounterclass,
+    ROUND(
+        AVG(payer_coverage / total_claim_cost) * 100
+        , 2) AS percent_covered
+FROM encounters
+GROUP BY encounterclass
+ORDER BY percent_covered DESC;
+
+/*
+Procedure Analysis
+*/
+-- Identifying top 10 most common procedures
+SELECT
+    procedure_descr,
+    total_procedures
+FROM (
+    SELECT
+        DENSE_RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking,
+        description AS procedure_descr,
+        COUNT(*) AS total_procedures
+    FROM procedures
+    GROUP BY procedure_descr
+) ranking_procedures
+WHERE ranking < 11;
+
+-- Analyze procedure costs by type or organization
+SELECT
+    encounters.encounterclass,
+    ROUND(
+        AVG(procedures.base_cost)
+        , 2) AS average_procedure_base_cost
+FROM procedures
+JOIN encounters ON procedures.encounter=encounters.id
+GROUP BY encounters.encounterclass
+ORDER BY average_procedure_base_cost DESC;
+
+-- Calculate the average duration of procedures
+-- consider removing two outliers: 384 hours and 32 hours.
+SELECT
+    description AS procedure_description,
+    SEC_TO_TIME(
+        AVG(
+            TIMESTAMPDIFF(SECOND, procedure_start, procedure_stop)
+        )
+    ) AS average_duration
+FROM procedures
+GROUP BY procedure_description
+ORDER BY average_duration DESC;
