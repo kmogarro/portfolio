@@ -153,14 +153,55 @@ GROUP BY encounters.encounterclass
 ORDER BY average_procedure_base_cost DESC;
 
 -- Calculate the average duration of procedures
--- consider removing two outliers: 384 hours and 32 hours.
+-- Outliers: 384 hours and 32 hours.
 SELECT
-    description AS procedure_description,
+    SEC_TO_TIME(
+        AVG(
+            TIMESTAMPDIFF(SECOND, procedure_start, procedure_stop)
+        )
+    ) AS average_duration
+FROM procedures;
+-- removing outliers
+SELECT
     SEC_TO_TIME(
         AVG(
             TIMESTAMPDIFF(SECOND, procedure_start, procedure_stop)
         )
     ) AS average_duration
 FROM procedures
-GROUP BY procedure_description
-ORDER BY average_duration DESC;
+WHERE description NOT IN ( -- removing outliers of 384 & 32 hours
+    'Admission to long stay hospital', 
+    'Human epidermal growth factor receptor 2 gene detection by fluorescence in situ hybridization (procedure)');
+    
+/*
+Payer Analysis
+*/
+-- Analyze which payers cover the highest percentage of costs
+SELECT
+    payers.name,
+    AVG(
+        encounters.payer_coverage / encounters.total_claim_cost * 100
+        ) AS average_claim_coverage
+FROM payers
+JOIN encounters
+    ON payers.id=encounters.payer
+GROUP BY payers.name
+ORDER BY average_claim_coverage DESC;
+
+-- Identifying correlations between payers and specific procedure types
+SELECT
+    payers.name,
+    encounters.encounterclass,
+    COUNT(*) AS total_encounters
+FROM payers
+JOIN encounters
+    ON payers.id=encounters.payer
+JOIN procedures
+    ON encounters.id=procedures.encounter
+GROUP BY
+    payers.name,
+    encounters.encounterclass
+ORDER BY
+    payers.name, 
+    total_encounters DESC
+;
