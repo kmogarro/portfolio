@@ -34,8 +34,7 @@ SELECT
     COUNT(CASE WHEN gender = 'F' THEN 1 END) / COUNT(*) AS percentage_female,
     COUNT(CASE WHEN gender = 'M' THEN 1 END) / COUNT(*) AS percentage_male
 FROM encounters
-JOIN patients 
-    ON encounters.patient = patients.id;
+JOIN patients ON encounters.patient = patients.id;
 -- Average age at encounter
 SELECT
     AVG(age) AS average_age
@@ -48,6 +47,8 @@ SELECT
 FROM encounters
 JOIN patients ON encounters.patient=patients.id
 ) ages;
+
+-- race/procedures correlations
 
 /*
 Cost analysis
@@ -155,9 +156,9 @@ ORDER BY average_procedure_base_cost DESC;
 -- Calculate the average duration of procedures
 -- Outliers: 384 hours and 32 hours.
 SELECT
-    SEC_TO_TIME(
+    SEC_TO_TIME( -- converting back to readable timestamp
         AVG(
-            TIMESTAMPDIFF(SECOND, procedure_start, procedure_stop)
+            TIMESTAMPDIFF(SECOND, procedure_start, procedure_stop) -- getting duration in seconds
         )
     ) AS average_duration
 FROM procedures;
@@ -183,8 +184,7 @@ SELECT
         encounters.payer_coverage / encounters.total_claim_cost * 100
         ) AS average_claim_coverage
 FROM payers
-JOIN encounters
-    ON payers.id=encounters.payer
+JOIN encounters ON payers.id=encounters.payer
 GROUP BY payers.name
 ORDER BY average_claim_coverage DESC;
 
@@ -192,16 +192,53 @@ ORDER BY average_claim_coverage DESC;
 SELECT
     payers.name,
     encounters.encounterclass,
-    COUNT(*) AS total_encounters
+    COUNT(*) as total_encounters,
+    ROUND(
+        COUNT(*) * 100 / SUM(count(*)) 
+            OVER (PARTITION BY payers.name)
+        , 2) AS encounter_percent
 FROM payers
-JOIN encounters
-    ON payers.id=encounters.payer
-JOIN procedures
-    ON encounters.id=procedures.encounter
-GROUP BY
-    payers.name,
-    encounters.encounterclass
-ORDER BY
+JOIN encounters ON payers.id=encounters.payer
+JOIN procedures ON encounters.id=procedures.encounter
+GROUP BY 
     payers.name, 
-    total_encounters DESC
-;
+    encounters.encounterclass
+ORDER BY 
+    payers.name, 
+    encounter_percent DESC;
+
+ -- Top 3 reasons for procedures per payer
+ SELECT
+    insurance_provider,
+    reasondescription,
+    total_encounters
+FROM (
+    SELECT
+        payers.name AS insurance_provider,
+        procedures.reasondescription,
+        COUNT(*) AS total_encounters,
+        DENSE_RANK() OVER (PARTITION BY payers.name ORDER BY COUNT(*) DESC) AS ranking
+    FROM payers
+    JOIN encounters
+        ON payers.id=encounters.payer
+    JOIN procedures
+        ON encounters.id=procedures.encounter
+    WHERE procedures.reasondescription != '' -- filtering out blank descriptions
+    GROUP BY
+        payers.name,
+        procedures.reasondescription
+    ORDER BY payers.name
+) description_ranks
+WHERE ranking <= 2;
+
+-- Gender makeup for each payer
+SELECT
+    payers.name AS provider,
+    COUNT(CASE WHEN gender = 'F' THEN gender ELSE NULL END) / COUNT(*) AS pct_female,
+    COUNT(CASE WHEN gender = 'M' THEN gender ELSE NULL END) / COUNT(*) AS pct_male,
+    COUNT(*) AS total
+FROM encounters
+JOIN payers ON encounters.payer=payers.id
+JOIN patients ON encounters.patient=patients.id
+GROUP BY payers.name
+ORDER BY provider;
