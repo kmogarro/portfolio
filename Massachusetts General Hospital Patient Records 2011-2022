@@ -49,6 +49,25 @@ JOIN patients ON encounters.patient=patients.id
 ) ages;
 
 -- race/procedures correlations
+WITH reasons_by_race AS (
+SELECT
+    patients.race,
+    procedures.reasondescription AS reason,
+    COUNT(*) AS patient_count,
+    DENSE_RANK() OVER (PARTITION BY race ORDER BY COUNT(*) DESC) AS ranking
+FROM patients
+JOIN procedures ON patients.id=procedures.patient
+WHERE procedures.reasondescription NOT IN ('')
+GROUP BY
+    race,
+    procedures.reasondescription
+)
+SELECT
+    race,
+    reason,
+    patient_count
+FROM reasons_by_race
+WHERE ranking <= 2;
 
 /*
 Cost analysis
