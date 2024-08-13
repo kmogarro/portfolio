@@ -3,18 +3,42 @@
 -- Queried using: MySQL Workbench
 
 /*
-Analyzing Patient Demographics
+ANALYZING PATIENT DEMOGRAPHICS
 */
+-- What is the rate of readmissions for the hospital?
+WITH readmitted_patients AS (
+    SELECT
+        e1.patient,
+        e1.encounter_start,
+        e1.encounter_stop,
+        MIN(e2.encounter_start) AS readmission_date
+    FROM encounters e1
+    LEFT JOIN encounters e2
+        ON e1.patient = e2.patient
+        AND e2.encounter_start > e1.encounter_stop
+        AND e2.encounter_start <= DATE_ADD(e1.encounter_stop, INTERVAL 31 DAY)
+    GROUP BY
+        e1.patient,
+        e1.encounter_start,
+        e1.encounter_stop
+)
+SELECT
+    COUNT(*) AS total_patients,
+    SUM(CASE WHEN readmission_date IS NOT NULL THEN 1 ELSE 0 END) AS readmissions,
+    ROUND(SUM(CASE WHEN readmission_date IS NOT NULL THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS rate_of_readmission_within_31_days
+FROM readmitted_patients;
+
 -- What is the average number of visits per patient per year?
 SELECT 
     yr, 
-    AVG(num_encounters) AS average_encounters_per_patient
+    ROUND(AVG(num_encounters), 2) AS average_encounters_per_patient
 FROM 
     (SELECT 
         YEAR(encounter_start) AS yr,
         patient,
         COUNT(*) AS num_encounters
     FROM encounters
+    WHERE YEAR(encounter_start) != 2022 -- Exclude 2022 due to incomplete data
     GROUP BY 
         yr, 
         patient) patient_encounters
@@ -29,13 +53,13 @@ FROM encounters
 GROUP BY encounterclass
 ORDER BY 2 DESC;
 
--- Analyzing encounter frequency by patient age, gender, and race
+-- Analyzing encounter frequency by patient age and sex
 SELECT 
-    COUNT(CASE WHEN gender = 'F' THEN 1 END) / COUNT(*) AS percentage_female,
-    COUNT(CASE WHEN gender = 'M' THEN 1 END) / COUNT(*) AS percentage_male
+    ROUND(COUNT(CASE WHEN gender = 'F' THEN 1 END) / COUNT(*), 2) AS percentage_female,
+    ROUND(COUNT(CASE WHEN gender = 'M' THEN 1 END) / COUNT(*), 2) AS percentage_male
 FROM encounters
 JOIN patients ON encounters.patient = patients.id;
--- Average age at encounter
+-- Age
 SELECT
     AVG(age) AS average_age
 FROM (
@@ -48,7 +72,7 @@ FROM encounters
 JOIN patients ON encounters.patient=patients.id
 ) ages;
 
--- race/procedures correlations
+-- What are the most frequent procedures per racial group?
 WITH reasons_by_race AS (
 SELECT
     patients.race,
@@ -70,9 +94,9 @@ FROM reasons_by_race
 WHERE ranking <= 2;
 
 /*
-Cost analysis
+COST ANALYSIS
 */
--- Comparing average costs across different encounter types
+-- What are the average costs across different encounter types?
 SELECT
     encounterclass,
     ROUND(AVG(base_encounter_cost), 2) AS average_base_cost,
@@ -81,19 +105,19 @@ FROM encounters
 GROUP BY encounterclass
 ORDER BY average_total_cost DESC;
 
--- Analyzing the relationship between encounter duration and cost
+-- Analyzing relationships between encounter duration and cost
 WITH durations AS (
     SELECT
         *,
         CASE
-            WHEN hour_duration BETWEEN 0 AND 4 THEN '0-4 hours'
-            WHEN hour_duration BETWEEN 4 AND 24 THEN 'up to 1 day'
-            WHEN hour_duration BETWEEN 24 AND 72 THEN '1-3 days'
-            WHEN hour_duration BETWEEN 72 AND 168 THEN '3-7 days'
-            WHEN hour_duration BETWEEN 168 AND 720 THEN '1-4 weeks'
-            WHEN hour_duration BETWEEN 720 AND 2160 THEN '1-3 months'
-            WHEN hour_duration BETWEEN 2160 AND 8760 THEN '3 months-1 year'
-            WHEN hour_duration > 8760 THEN '> 1 year'
+            WHEN hour_duration BETWEEN 0 AND 4 THEN '0_4 hours'
+            WHEN hour_duration BETWEEN 4 AND 24 THEN 'up_to_1_day'
+            WHEN hour_duration BETWEEN 24 AND 72 THEN '1_3 days'
+            WHEN hour_duration BETWEEN 72 AND 168 THEN '3_7 days'
+            WHEN hour_duration BETWEEN 168 AND 720 THEN '1_4 weeks'
+            WHEN hour_duration BETWEEN 720 AND 2160 THEN '1_3 months'
+            WHEN hour_duration BETWEEN 2160 AND 8760 THEN '3_months_1_year'
+            WHEN hour_duration > 8760 THEN '>_1_year'
             ELSE 'error'
         END AS duration
     FROM (
@@ -114,7 +138,7 @@ FROM durations
 GROUP BY duration
 ORDER BY average_total_cost DESC;
 
--- Calculate the average percentage of costs covered by payers
+-- What is the average percentage of costs covered by payers?
 SELECT
     ROUND(
         AVG(percent_covered)
@@ -124,7 +148,7 @@ SELECT
     (payer_coverage / total_claim_cost) * 100  AS percent_covered
 FROM encounters
 ) percent_payer_covers;
- -- grouped by payers
+ -- Grouping by payers
  SELECT
     payers.name,
     ROUND(
@@ -134,7 +158,7 @@ FROM encounters
 JOIN payers ON encounters.payer=payers.id
 GROUP BY payers.name
 ORDER BY percent_covered DESC;
--- grouped by encounter class
+-- Grouping by encounter class
 SELECT
     encounterclass,
     ROUND(
@@ -145,9 +169,9 @@ GROUP BY encounterclass
 ORDER BY percent_covered DESC;
 
 /*
-Procedure Analysis
+PROCEDURE ANALYSIS
 */
--- Identifying top 10 most common procedures
+-- What are the top 10 most common procedures?
 SELECT
     procedure_descr,
     total_procedures
@@ -161,7 +185,7 @@ FROM (
 ) ranking_procedures
 WHERE ranking < 11;
 
--- Analyze procedure costs by type or organization
+-- Analyzing procedure costs by encounter type
 SELECT
     encounters.encounterclass,
     ROUND(
@@ -172,8 +196,7 @@ JOIN encounters ON procedures.encounter=encounters.id
 GROUP BY encounters.encounterclass
 ORDER BY average_procedure_base_cost DESC;
 
--- Calculate the average duration of procedures
--- Outliers: 384 hours and 32 hours.
+-- What is the average duration of all procedures?
 SELECT
     SEC_TO_TIME( -- converting back to readable timestamp
         AVG(
@@ -181,7 +204,7 @@ SELECT
         )
     ) AS average_duration
 FROM procedures;
--- removing outliers
+
 SELECT
     SEC_TO_TIME(
         AVG(
@@ -194,37 +217,18 @@ WHERE description NOT IN ( -- removing outliers of 384 & 32 hours
     'Human epidermal growth factor receptor 2 gene detection by fluorescence in situ hybridization (procedure)');
     
 /*
-Payer Analysis
+PAYER ANALYSIS
 */
--- Analyze which payers cover the highest percentage of costs
+-- Which payers cover the highest percentages of costs?
 SELECT
     payers.name,
-    AVG(
+    ROUND(AVG(
         encounters.payer_coverage / encounters.total_claim_cost * 100
-        ) AS average_claim_coverage
+        ), 2) AS average_percent_covered
 FROM payers
 JOIN encounters ON payers.id=encounters.payer
 GROUP BY payers.name
-ORDER BY average_claim_coverage DESC;
-
--- Identifying correlations between payers and specific procedure types
-SELECT
-    payers.name,
-    encounters.encounterclass,
-    COUNT(*) as total_encounters,
-    ROUND(
-        COUNT(*) * 100 / SUM(count(*)) 
-            OVER (PARTITION BY payers.name)
-        , 2) AS encounter_percent
-FROM payers
-JOIN encounters ON payers.id=encounters.payer
-JOIN procedures ON encounters.id=procedures.encounter
-GROUP BY 
-    payers.name, 
-    encounters.encounterclass
-ORDER BY 
-    payers.name, 
-    encounter_percent DESC;
+ORDER BY average_percent_covered DESC;
 
  -- Top 3 reasons for procedures per payer
  SELECT
@@ -250,14 +254,42 @@ FROM (
 ) description_ranks
 WHERE ranking <= 2;
 
--- Gender makeup for each payer
+-- What is the gender makeup for each payer?
 SELECT
     payers.name AS provider,
-    COUNT(CASE WHEN gender = 'F' THEN gender ELSE NULL END) / COUNT(*) AS pct_female,
-    COUNT(CASE WHEN gender = 'M' THEN gender ELSE NULL END) / COUNT(*) AS pct_male,
-    COUNT(*) AS total
+    ROUND(COUNT(CASE WHEN gender = 'F' THEN gender ELSE NULL END) / COUNT(*), 2) AS pct_female,
+    ROUND(COUNT(CASE WHEN gender = 'M' THEN gender ELSE NULL END) / COUNT(*), 2) AS pct_male
 FROM encounters
 JOIN payers ON encounters.payer=payers.id
 JOIN patients ON encounters.patient=patients.id
 GROUP BY payers.name
 ORDER BY provider;
+
+/*
+TIME-BASED ANALYSIS
+*/
+-- Analyze seasonal trends in encounters or procedures
+SELECT
+    YEAR(encounter_start) AS encounter_year,
+    CASE
+        WHEN MONTH(encounter_start) IN (1, 2, 3) THEN 'Q1'
+        WHEN MONTH(encounter_start) IN (4, 5, 6) THEN 'Q2'
+        WHEN MONTH(encounter_start) IN (7, 8, 9) THEN 'Q3'
+        WHEN MONTH(encounter_start) IN (10, 11, 12) THEN 'Q4'
+        ELSE 'error: check logic'
+    END AS fiscal_quarter,
+    COUNT(*) AS encounters,
+    ROUND(
+        COUNT(*) * 100.0 / 
+        SUM(COUNT(*)) OVER (PARTITION BY YEAR(encounter_start)), 
+        2
+    ) AS pct
+FROM 
+    encounters
+WHERE YEAR(encounter_start) != 2022 -- Exclude 2022 due to incomplete data
+GROUP BY 
+    encounter_year, 
+    fiscal_quarter
+ORDER BY 
+    encounter_year DESC, 
+    fiscal_quarter;
