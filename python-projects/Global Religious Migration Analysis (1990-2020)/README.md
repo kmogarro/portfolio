@@ -4,7 +4,7 @@
 An analysis of religious migration patterns worldwide using data from Pew Research Center. This project explores how migration flows have influenced religious demographics across different geographical scales over a 30-year period.
 
 ## Data Source
-- Source: Pew Research Center
+- Source: [Pew Research Center](https://www.pewresearch.org/dataset/dataset-religious-composition-of-the-worlds-migrants-1990-2020/)
 - Time Period: 1990-2020 (5-year intervals)
 - Scope: Global migration patterns with hierarchical data structure (Country -> Regional -> Global)
 - Size: ~26.7k rows
