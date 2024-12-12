@@ -1,0 +1,30 @@
+Core Analysis Components:
+A. Global Analysis (Level 3)
+
+Total migration volumes over time
+Changes in religious composition globally
+Major migration flow patterns
+Religious diversity trends
+
+B. Regional Analysis (Level 2)
+
+Compare patterns across regions
+Regional religious diversity changes
+Identify regional migration hubs
+Inter-regional migration flows
+
+C. Country-Level Analysis (Level 1)
+
+Countries with significant religious composition changes
+Comparative analysis between similar countries
+Major migration corridors
+Case studies of interesting patterns
+
+
+Advanced Analysis:
+
+Religious diversity indices calculation
+Time series analysis of migration patterns
+Migration flow visualization
+Correlation analysis between different factors
+Pattern identification
