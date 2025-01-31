@@ -1,0 +1,4 @@
+1/30:
+-	Created folder structure
+-	Separated sql code into different files
+- 	Added extra analysis to 05_temporal_analysis
